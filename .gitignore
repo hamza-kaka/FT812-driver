@@ -1,0 +1,13 @@
+**/Listings/
+**/Objects/
+*.o
+*.d
+*.crf
+*.map
+*.uvoptx
+*.uvprojx
+*.lst
+
+**/*.scvd
+**/*.uvoptx
+**/*.Taraz Tech1
