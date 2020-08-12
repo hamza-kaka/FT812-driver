@@ -11,6 +11,8 @@
  ******************************************************************************/
 #include "gpu_hal.h"
 #include "fsl_dspi.h"
+#include "spi.h"
+#include "dma.h"
 
 /*******************************************************************************
  * Defines
@@ -31,60 +33,85 @@
 /*******************************************************************************
  * Variables
  ******************************************************************************/
-extern volatile bool dmaDone=0;		
-
+  extern volatile bool dmaDone ;
+ 
+	ft_uint32_t Ft_CmdBuffer_Index;
+	ft_uint32_t Ft_DlBuffer_Index;
+	ft_uint8_t  Ft_DlBuffer[FT_DL_SIZE];
+	ft_uint8_t  Ft_CmdBuffer[FT_CMD_FIFO_SIZE];
+	
 /*******************************************************************************
  * Code
  ******************************************************************************/
  
- 
-   ////////////////////////////////  hardware layer functions ///////////////////////////
- void ClearFlags()
- {
-   SPI2->SR  = SPI_SR_RFDF(1) | SPI_SR_TCF(1) | SPI_SR_TFFF(1) ;
- }
- 
-uint8_t Read8 ()
+ void ActivateFT81x(Ft_Gpu_Hal_Context_t* phost,Ft_Gpu_HalInit_t* Lcd_spiModule,Ft_Gpu_Hal_Config_t* Lcd_Spi_def_config)
 {
-  uint8_t dummy =0;
-	SPI2->PUSHR = SPI_PUSHR_TXDATA(dummy) |  SPI_PUSHR_PCS(1) | SPI_PUSHR_CONT_MASK;  
-	while ((SPI2->SR & SPI_SR_RFDF_MASK)==0)
-	 {}
-		(void)SPI2->POPR; 
-		SPI2->SR  = SPI_SR_RFDF(1) | SPI_SR_TCF(1);
+	int check=0;
+  
+		while(!Ft_Gpu_Hal_Init(Lcd_spiModule))
+	{}
+		
+	if(def_SPI_config)
+		phost->hal_config = *Lcd_Spi_def_config;
 	
-		 dummy = SPI2->POPR;	 
-		 return dummy;
+
+	Ft_Gpu_Hal_Open(phost,Lcd_spiModule);
+	phost->ft_cmd_fifo_wp = 0;
+	phost->ft_dl_buff_wp = 0;
+	
+	LcdHardwareReset();
+	
+
+	Ft_Gpu_HostCommand(phost,FT_GPU_EXTERNAL_OSC);
+	Ft_Gpu_HostCommand(phost,FT_GPU_ACTIVE_M);
+	
+	while(check != 0x7C)
+	check = Ft_Gpu_Hal_Rd8(phost, REG_ID); 
+	
+	Ft_Gpu_Hal_Wr16(phost,REG_CMD_WRITE,0x0);
+	Ft_Gpu_Hal_Wr16(phost,REG_CMD_READ,0x0);
+
+	while(check != 0x0)
+	check = Ft_Gpu_Hal_Rd16(phost,REG_CMD_READ); 
+  Ft_Gpu_CoCmd_ColdStart(phost);
+      
+	Ft_Gpu_Hal_Wr8(phost,REG_TOUCH_MODE,3);
+	Ft_Gpu_Hal_Wr16(phost,REG_TOUCH_RZTHRESH,1500);
+	
+  TouchRegCalib(phost);
+	
+	Ft_Gpu_Hal_Wr8(phost, REG_GPIO, FT_DispPIN);
+	Ft_Gpu_Hal_Wr8(phost, REG_PCLK_POL, 0x1);
+	Ft_Gpu_Hal_Wr8(phost, REG_PCLK, 0x5); 
+	Ft_Gpu_Hal_Wr8(phost, REG_CMD_DL, 0x0); 
+	
 }
 
-void Send8Spi(uint8_t txdata)
-{
-	SPI2->PUSHR = SPI_PUSHR_TXDATA(txdata) |  SPI_PUSHR_PCS(1) | SPI_PUSHR_CONT_MASK; 
-	while ((SPI2->SR & SPI_SR_RFDF_MASK)==0)
-	 {}
-		 (void)SPI2->POPR;
-		SPI2->SR  = SPI_SR_RFDF(1) | SPI_SR_TCF(1);
-    		 
-}
 
-void Send8Dummy()
+void LcdHardwareReset()
 {
-	uint8_t dummy =0;
-	SPI2->PUSHR = SPI_PUSHR_TXDATA(dummy) |  SPI_PUSHR_PCS(1) | SPI_PUSHR_CONT_MASK;  
-	while ((SPI2->SR & SPI_SR_RFDF_MASK)==0)
-	 {}
-		(void)SPI2->POPR; 
-		SPI2->SR  = SPI_SR_RFDF(1) | SPI_SR_TCF(1);
-}
+	LCD_PDN_GPIO->PDDR |= 1<< LCD_PDN_PIN;
+	LCD_PDN_GPIO->PCOR |= 1<< LCD_PDN_PIN;
+	
+	PitTimer(5000);
+	
+	LCD_PDN_GPIO->PDOR |= 1<< LCD_PDN_PIN;
+	PitTimer(20000);
 
-void CeaseTrans()
-{
-	SPI2->PUSHR = 0;
-		 while ((SPI2->SR & SPI_SR_RFDF_MASK)==0)
-	 {}
-		 (void)SPI2->POPR;
-		SPI2->SR  = SPI_SR_RFDF(1) | SPI_SR_TCF(1); 
 }
+ 
+void TouchRegCalib (Ft_Gpu_Hal_Context_t *host)
+{
+  Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_A,TR1);
+	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_B,TR2);
+	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_C,TR3);
+	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_D,TR4);
+	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_E,TR5);
+	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_F,TR6);
+}
+	
+
+																																																														/********************************************************************************************/
 
 void WriteToAdd (int address)
 {
@@ -241,126 +268,19 @@ void SendString (char* str)
 	 Send8Spi(0);
 }
 
-void TouchRegCalib (Ft_Gpu_Hal_Context_t *host)
-{
-  Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_A,TR1);
-	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_B,TR2);
-	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_C,TR3);
-	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_D,TR4);
-	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_E,TR5);
-	Ft_Gpu_Hal_Wr32(host,REG_TOUCH_TRANSFORM_F,TR6);
-}
-	
-	
-void DmaWriteInit(uint8_t *buffer,uint32_t count)
-{
-	DMA0->ERQ = (uint32_t)(1<<DMA_TX_CHNL | 1<<DMA_RX_CHNL);
-	
-	uint8_t dmaBuff =0;
-  DMA0->TCD[DMA_TX_CHNL].NBYTES_MLNO = TX_BYTES;
-	DMA0->TCD[DMA_TX_CHNL].SOFF = S_OFF;
-	DMA0->TCD[DMA_TX_CHNL].DADDR = PUSH_REG;
-  DMA0->TCD[DMA_TX_CHNL].ATTR = DMA_ATTR_DSIZE(0) | DMA_ATTR_SSIZE(0);
-  DMA0->TCD[DMA_TX_CHNL].DOFF = 0;
-  DMA0->TCD[DMA_TX_CHNL].DLAST_SGA = 0;
-  DMA0->TCD[DMA_TX_CHNL].SLAST = 0;
- 	DMA0->TCD[DMA_TX_CHNL].CSR =  DMA_CSR_INTMAJOR_MASK | DMA_CSR_DREQ(1);
-	DMA0->TCD[DMA_TX_CHNL].BITER_ELINKNO = DMA0->TCD[DMA_TX_CHNL].CITER_ELINKNO = count;
-	DMA0->TCD[DMA_TX_CHNL].SADDR = (uint32_t)buffer;
-	
-		
-	
-	DMA0->TCD[DMA_RX_CHNL].NBYTES_MLNO = RX_BYTES;
-	DMA0->TCD[DMA_RX_CHNL].SOFF = 0;
-	DMA0->TCD[DMA_RX_CHNL].CSR =  DMA_CSR_INTMAJOR_MASK | DMA_CSR_DREQ(1);
-	DMA0->TCD[DMA_RX_CHNL].SADDR = POP_REG;
-  DMA0->TCD[DMA_RX_CHNL].ATTR = DMA_ATTR_DSIZE(0) | DMA_ATTR_SSIZE(0);
-  DMA0->TCD[DMA_RX_CHNL].DOFF = 0;
-  DMA0->TCD[DMA_RX_CHNL].DLAST_SGA = 0;
-  DMA0->TCD[DMA_RX_CHNL].SLAST = 0;
- 	DMA0->TCD[DMA_RX_CHNL].DADDR = (uint32_t)&dmaBuff;
-	DMA0->TCD[DMA_RX_CHNL].BITER_ELINKNO = DMA0->TCD[DMA_RX_CHNL].CITER_ELINKNO = count;
-}
 
-void DmaReadInit(uint8_t *buffer,uint32_t count)
-{
-  DMA0->ERQ = (uint32_t)(1<<DMA_TX_CHNL | 1<<DMA_RX_CHNL);
-	
-  uint8_t dmaBuff =0;
-  DMA0->TCD[DMA_TX_CHNL].NBYTES_MLNO = TX_BYTES;
-	DMA0->TCD[DMA_TX_CHNL].SOFF = 0;
-	DMA0->TCD[DMA_TX_CHNL].DADDR = PUSH_REG;
-  DMA0->TCD[DMA_TX_CHNL].ATTR = DMA_ATTR_DSIZE(0) | DMA_ATTR_SSIZE(0);
-  DMA0->TCD[DMA_TX_CHNL].DOFF = 0;
-  DMA0->TCD[DMA_TX_CHNL].DLAST_SGA = 0;
-  DMA0->TCD[DMA_TX_CHNL].SLAST = 0;
- 	DMA0->TCD[DMA_TX_CHNL].CSR =  DMA_CSR_INTMAJOR_MASK | DMA_CSR_DREQ(1);
-	DMA0->TCD[DMA_TX_CHNL].BITER_ELINKNO = DMA0->TCD[DMA_TX_CHNL].CITER_ELINKNO = count;
-	DMA0->TCD[DMA_TX_CHNL].SADDR = (uint32_t)&dmaBuff;
-	
-	DMA0->TCD[DMA_RX_CHNL].NBYTES_MLNO = RX_BYTES;
-	DMA0->TCD[DMA_RX_CHNL].SOFF = 0;
-	DMA0->TCD[DMA_RX_CHNL].CSR =  DMA_CSR_INTMAJOR_MASK | DMA_CSR_DREQ(1);
-	DMA0->TCD[DMA_RX_CHNL].SADDR = POP_REG;
-  DMA0->TCD[DMA_RX_CHNL].ATTR = DMA_ATTR_DSIZE(0) | DMA_ATTR_SSIZE(0);
-  DMA0->TCD[DMA_RX_CHNL].DOFF = S_OFF;
-  DMA0->TCD[DMA_RX_CHNL].DLAST_SGA = 0;
-  DMA0->TCD[DMA_RX_CHNL].SLAST = 0;
-	DMA0->TCD[DMA_RX_CHNL].DADDR = (uint32_t)buffer;
-	DMA0->TCD[DMA_RX_CHNL].BITER_ELINKNO = DMA0->TCD[DMA_RX_CHNL].CITER_ELINKNO = count;
-}
+																																																																			/********************************************************************************************/
 
-void ActivateFT81x(Ft_Gpu_Hal_Context_t* phost,Ft_Gpu_HalInit_t* Lcd_spiModule,Ft_Gpu_Hal_Config_t* Lcd_Spi_def_config)
-{
-	int check=0;
-  
-	while(!Ft_Gpu_Hal_Init(Lcd_spiModule))
-	{}
-		
-	if(def_SPI_config)
-		phost->hal_config = *Lcd_Spi_def_config;
-	
-
-	Ft_Gpu_Hal_Open(phost,Lcd_spiModule);
-	phost->ft_cmd_fifo_wp = 0;
-	phost->ft_dl_buff_wp = 0;
-
-	Ft_Gpu_HostCommand(phost,FT_GPU_EXTERNAL_OSC);
-	Ft_Gpu_HostCommand(phost,FT_GPU_ACTIVE_M);
-	
-	while(check != 0x7C)
-	check = Ft_Gpu_Hal_Rd8(phost, REG_ID); 
-	
-	Ft_Gpu_Hal_Wr8(phost,REG_CPURESET,0x1);
-	Ft_Gpu_Hal_Wr16(phost,REG_CMD_WRITE,0x0);
-	Ft_Gpu_Hal_Wr16(phost,REG_CMD_READ,0x0);
-	Ft_Gpu_Hal_Wr8(phost,REG_CPURESET,0x0);
-	while(check != 0x0)
-	check = Ft_Gpu_Hal_Rd16(phost,REG_CMD_READ);
-  Ft_Gpu_CoCmd_ColdStart(phost);
-      
-  TouchRegCalib(phost);
-	
-	Ft_Gpu_Hal_Wr8(phost, REG_GPIO, FT_DispPIN);
-	Ft_Gpu_Hal_Wr8(phost, REG_PCLK_POL, 0x1);
-	Ft_Gpu_Hal_Wr8(phost, REG_PCLK, 0x5); 
-	Ft_Gpu_Hal_Wr8(phost, REG_CMD_DL, 0x0); 
-}
-	
-                            /////////////////////////////////////////////////////////////////////////////////////////////////
-
-ft_uint32_t Ft_CmdBuffer_Index;
-ft_uint32_t Ft_DlBuffer_Index;
-ft_uint8_t  Ft_DlBuffer[FT_DL_SIZE];
-ft_uint8_t  Ft_CmdBuffer[FT_CMD_FIFO_SIZE];
 
 ft_void_t Ft_App_WrCoCmd_Buffer(Ft_Gpu_Hal_Context_t *phost,ft_uint32_t cmd)
 {
-#ifdef  BUFFER_OPTIMIZATION
+#if  (BUFFER_OPTIMIZATION)
    /* Copy the command instruction into buffer */
    ft_uint32_t *pBuffcmd;
    pBuffcmd =(ft_uint32_t*)&Ft_CmdBuffer[Ft_CmdBuffer_Index];
    *pBuffcmd = cmd;
+#else 
+		Ft_Gpu_Hal_WrCmd32(phost,cmd);
 #endif
    /* Increment the command index */
    Ft_CmdBuffer_Index += FT_CMD_SIZE;
@@ -368,11 +288,13 @@ ft_void_t Ft_App_WrCoCmd_Buffer(Ft_Gpu_Hal_Context_t *phost,ft_uint32_t cmd)
 
 ft_void_t Ft_App_WrDlCmd_Buffer(Ft_Gpu_Hal_Context_t *phost,ft_uint32_t cmd)
 {
-#ifdef BUFFER_OPTIMIZATION
+#if  (BUFFER_OPTIMIZATION)
    /* Copy the command instruction into buffer */
    ft_uint32_t *pBuffcmd;
    pBuffcmd =(ft_uint32_t*)&Ft_DlBuffer[Ft_DlBuffer_Index];
    *pBuffcmd = cmd;
+	#else 
+		Ft_Gpu_Hal_Wr32(phost,(RAM_DL+Ft_DlBuffer_Index),cmd);
 #endif
 
    /* Increment the command index */
@@ -381,7 +303,7 @@ ft_void_t Ft_App_WrDlCmd_Buffer(Ft_Gpu_Hal_Context_t *phost,ft_uint32_t cmd)
 
 ft_void_t Ft_App_WrCoStr_Buffer(Ft_Gpu_Hal_Context_t *phost,const ft_char8_t *s)
 {
-#ifdef  BUFFER_OPTIMIZATION
+#if  (BUFFER_OPTIMIZATION)
   ft_uint16_t length = 0;
   length = strlen(s) + 1;//last for the null termination
 
@@ -403,7 +325,7 @@ ft_void_t Ft_App_Flush_DL_Buffer(Ft_Gpu_Hal_Context_t *phost)
 
 ft_void_t Ft_App_Flush_Co_Buffer(Ft_Gpu_Hal_Context_t *phost)
 {
-#ifdef  BUFFER_OPTIMIZATION
+#if  (BUFFER_OPTIMIZATION)
    if (Ft_CmdBuffer_Index > 0)
      Ft_Gpu_Hal_WrCmdBuf(phost,Ft_CmdBuffer,Ft_CmdBuffer_Index);
 #endif
@@ -411,42 +333,16 @@ ft_void_t Ft_App_Flush_Co_Buffer(Ft_Gpu_Hal_Context_t *phost)
 }
 
 
+																																																										/******************************************* HAL functions ************************************************/
+
 ft_bool_t  Ft_Gpu_Hal_Init(Ft_Gpu_HalInit_t *Lcd_spiModule)
 {
-  
-	Lcd_spiModule->spiModule = SPI_MODULE_NO;
-//  initialize pins and clock
-	SIM->SCGC5 |= SIM_SCGC5_PORTD(1);
 	
-	PORTD->PCR[11] = PORT_PCR_MUX(2);
-	PORTD->PCR[12] = PORT_PCR_MUX(2);
-	PORTD->PCR[13] = PORT_PCR_MUX(2);
-	PORTD->PCR[14] = PORT_PCR_MUX(2);
-	
-//	SPI clock enable
-	clock_ip_name_t const s_dspiClock[] = DSPI_CLOCKS;
-	CLOCK_EnableClock(s_dspiClock[DSPI_GetInstance(Lcd_spiModule->spiModule)]);
-	
-//	DMA MUX initiazation
-	DMAMUX_Init(DMAMUX0);
-  DMAMUX_SetSource(DMAMUX0,DMA_RX_CHNL,SPI_RX_SRC);
-  DMAMUX_SetSource(DMAMUX0,DMA_TX_CHNL,SPI_TX_SRC);
-  DMAMUX_EnableChannel(DMAMUX0,DMA_TX_CHNL);
-  DMAMUX_EnableChannel(DMAMUX0,DMA_RX_CHNL);
-	
-//	DMA clock enable and initialization
-  SIM->SCGC7 = SIM_SCGC7_DMA_MASK;
-	
-	
-if(DMA_TX_CHNL>15 && DMA_RX_CHNL>15)
-	DMA0->CR =   DMA_CR_GRP1PRI(1);
-else if(DMA_TX_CHNL<=15 && DMA_RX_CHNL<=15)
-	DMA0->CR =   DMA_CR_GRP0PRI(1);
-
-
+  Lcd_spiModule->spiModule = SPI_MODULE_NO;
+	PitInit();
+	SpiInit();
+	DmaInit();
 }
-
-   /////////////////////////////// HAL functions //////////////////////////
 
 ft_bool_t    Ft_Gpu_Hal_Open(Ft_Gpu_Hal_Context_t *Lcd_Spi_Handler, Ft_Gpu_HalInit_t *halmodule)
 {
@@ -466,37 +362,24 @@ ft_void_t  Ft_Gpu_Hal_Close(Ft_Gpu_Hal_Context_t *host, Ft_Gpu_HalInit_t *halmod
 
 ft_void_t Ft_Gpu_Hal_DeInit()
 {
+ void SpiDeInit();
 
-  //  de initialize pins and clock
-	SIM->SCGC5 |= SIM_SCGC5_PORTD(0);
-	
-	PORTD->PCR[11] = PORT_PCR_MUX(2);
-	PORTD->PCR[12] = PORT_PCR_MUX(2);
-	PORTD->PCR[13] = PORT_PCR_MUX(2);
-	PORTD->PCR[14] = PORT_PCR_MUX(2);
-	
-	SIM->SCGC3 = SIM_SCGC3_SPI2(0);
 }
 
 
 ft_void_t  Ft_Gpu_Hal_StartTransfer(Ft_Gpu_Hal_Context_t *host,FT_GPU_TRANSFERDIR_T rw,ft_uint32_t addr)
 {
 	
-	
-	
 	if (FT_GPU_READ == rw)
 	{ 
 		ReadFrmAdd (addr);
-
-		 Send8Dummy(); //Dummy Read Byte
-
+		Send8Dummy(); //Dummy Read Byte
 		host->status = FT_GPU_HAL_READING;
 	}
 	else
 	{
 	 WriteToAdd (addr);
-   
-		host->status = FT_GPU_HAL_WRITING;
+   	host->status = FT_GPU_HAL_WRITING;
 	}
 }
 
@@ -529,7 +412,7 @@ ft_uint8_t    Ft_Gpu_Hal_Transfer8(Ft_Gpu_Hal_Context_t *host,ft_uint8_t value)
 	    }
 	    else
 	    {
-		    ReadByte = Read8 ();
+		    ReadByte = Read8();
 	    }
 	    return ReadByte;
 }
@@ -587,7 +470,7 @@ ft_uint8_t  Ft_Gpu_Hal_Rd8(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr)
 	
 			Ft_Gpu_Hal_StartTransfer(host,FT_GPU_READ,addr);
 			value = Ft_Gpu_Hal_Transfer8(host,0);
-            Ft_Gpu_Hal_EndTransfer(host);
+       Ft_Gpu_Hal_EndTransfer(host);
 
 	return value;
 }
@@ -769,7 +652,7 @@ ft_void_t Ft_Gpu_Hal_WrCmdBuf(Ft_Gpu_Hal_Context_t *host,ft_uint8_t *buffer,ft_u
 	do 
 	{                
 		length = count;
-        availablefreesize = Ft_Gpu_Cmdfifo_Freespace(host);
+    availablefreesize = Ft_Gpu_Cmdfifo_Freespace(host);
 
 		if (length > availablefreesize)
 		{
@@ -780,6 +663,9 @@ ft_void_t Ft_Gpu_Hal_WrCmdBuf(Ft_Gpu_Hal_Context_t *host,ft_uint8_t *buffer,ft_u
 		  Ft_Gpu_Hal_StartCmdTransfer(host,FT_GPU_WRITE,length); 
 	
 		SizeTransfered = 0;
+		
+		#if (DMA_XFER_EN)
+		
 		DmaWriteInit(buffer,length);
 	  ClearFlags();
 		SPI_MODULE_NO->RSER = SPI_RSER_RFDF_DIRS_MASK | SPI_RSER_RFDF_RE_MASK |SPI_RSER_TFFF_DIRS(1) | SPI_RSER_TFFF_RE(1);
@@ -788,15 +674,18 @@ ft_void_t Ft_Gpu_Hal_WrCmdBuf(Ft_Gpu_Hal_Context_t *host,ft_uint8_t *buffer,ft_u
 		{}
 			dmaDone = 0;
 		SPI_MODULE_NO->RSER = 0;
+		DMA0->ERQ = 0;
 		
+	#else
 				
-//			    while (length--) {
-//			    Ft_Gpu_Hal_Transfer8(host,*buffer);
-//			    buffer++;
-//			    SizeTransfered ++;
-//			    }
-//			    length = SizeTransfered;
+			    while (length--) {
+			    Ft_Gpu_Hal_Transfer8(host,*buffer);
+			    buffer++;
+			    SizeTransfered ++;
+			    }
+			    length = SizeTransfered;
 
+	#endif
 		    
 		Ft_Gpu_Hal_EndTransfer(host);			
 		Ft_Gpu_Hal_Updatecmdfifo(host,length);
@@ -805,6 +694,8 @@ ft_void_t Ft_Gpu_Hal_WrCmdBuf(Ft_Gpu_Hal_Context_t *host,ft_uint8_t *buffer,ft_u
 		count -= length;
 	}while(count > 0);
 }
+
+
 
 
 /***************************************************************************
@@ -860,6 +751,7 @@ ft_void_t Ft_Gpu_Hal_WrCmdBuf_nowait(Ft_Gpu_Hal_Context_t *host,ft_uint8_t *buff
             Ft_Gpu_Hal_StartCmdTransfer(host,FT_GPU_WRITE,length);
 		
 				SizeTransfered = 0;
+	#if (DMA_XFER_EN)	
 			
 		DmaWriteInit(buffer,length);
 	  ClearFlags();
@@ -869,16 +761,18 @@ ft_void_t Ft_Gpu_Hal_WrCmdBuf_nowait(Ft_Gpu_Hal_Context_t *host,ft_uint8_t *buff
 		{}
 			dmaDone = 0;
 		SPI_MODULE_NO->RSER = 0;
+			DMA0->ERQ = 0;
 			
-//				while (length--)
-//				{
-//                    Ft_Gpu_Hal_Transfer8(host,*buffer);
-//		            buffer++;
-//                    SizeTransfered ++;
-//		        }
-//                length = SizeTransfered;
+	#else		
+				while (length--)
+				{
+                    Ft_Gpu_Hal_Transfer8(host,*buffer);
+		            buffer++;
+                    SizeTransfered ++;
+		        }
+                length = SizeTransfered;
        
-   
+  #endif
 
 			Ft_Gpu_Hal_EndTransfer(host);
 			Ft_Gpu_Hal_Updatecmdfifo(host,length);
@@ -1024,7 +918,7 @@ ft_void_t Ft_Gpu_Hal_WrMemFromFlash(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr,
 
     Ft_Gpu_Hal_StartTransfer(host, FT_GPU_WRITE, addr);
 	  
-			
+	#if (DMA_XFER_EN)		
 	  if(length<=DMA_MAX_ITER)
 	  {
 					DmaWriteInit(buffer,length);
@@ -1034,6 +928,7 @@ ft_void_t Ft_Gpu_Hal_WrMemFromFlash(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr,
 					{}
 						dmaDone = 0;
 					SPI_MODULE_NO->RSER = 0;
+						DMA0->ERQ = 0;
 		}
 		else 
     {
@@ -1045,9 +940,11 @@ ft_void_t Ft_Gpu_Hal_WrMemFromFlash(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr,
 					{}
 						dmaDone = 0;
 					SPI_MODULE_NO->RSER = 0;
+						DMA0->ERQ = 0;
 					buffer+=DMA_MAX_ITER;
 					length-=DMA_MAX_ITER;
 				}while(length>DMA_MAX_ITER);
+			
 			    DmaWriteInit(buffer,length);
 					ClearFlags();
 					SPI_MODULE_NO->RSER = SPI_RSER_RFDF_DIRS_MASK | SPI_RSER_RFDF_RE_MASK |SPI_RSER_TFFF_DIRS(1) | SPI_RSER_TFFF_RE(1);
@@ -1055,12 +952,17 @@ ft_void_t Ft_Gpu_Hal_WrMemFromFlash(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr,
 					{}
 						dmaDone = 0;
 					SPI_MODULE_NO->RSER = 0;
+						DMA0->ERQ = 0;
 		}
-			
-//	while (length--) {
-//            Ft_Gpu_Hal_Transfer8(host,ft_pgm_read_byte_near(buffer));
-//	    buffer++;
-//	}
+	#else 		
+	
+	while (length--) {
+            Ft_Gpu_Hal_Transfer8(host,ft_pgm_read_byte_near(buffer));
+	    buffer++;
+	}
+
+		#endif
+		
     Ft_Gpu_Hal_EndTransfer(host);
 
 }
@@ -1076,7 +978,9 @@ ft_void_t Ft_Gpu_Hal_WrMem(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr, ft_uchar
 {
 	  ft_uint32_t SizeTransfered = 0;      
 		Ft_Gpu_Hal_StartTransfer(host,FT_GPU_WRITE,addr);
-  
+ 
+	#if (DMA_XFER_EN)
+	
 	  if(length<=DMA_MAX_ITER)
 	  {
 					DmaWriteInit(buffer,length);
@@ -1109,14 +1013,15 @@ ft_void_t Ft_Gpu_Hal_WrMem(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr, ft_uchar
 					SPI_MODULE_NO->RSER = 0;
 		}
 			
-	
-//			while (length--)
-//			{
-//				Ft_Gpu_Hal_Transfer8(host,*buffer);
-//				buffer++;
-//			}
-//        Ft_Gpu_Hal_EndTransfer(host);
+	#else
+			while (length--)
+			{
+				Ft_Gpu_Hal_Transfer8(host,*buffer);
+				buffer++;
+			}
+        Ft_Gpu_Hal_EndTransfer(host);
 
+			#endif
 }
 
 /***************************************************************************
@@ -1130,6 +1035,7 @@ ft_void_t Ft_Gpu_Hal_RdMem(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr, ft_uint8
   	ft_uint32_t SizeTransfered = 0;      
 		Ft_Gpu_Hal_StartTransfer(host,FT_GPU_READ,addr);
 	
+	#if (DMA_XFER_EN)
 	  if(length<=DMA_MAX_ITER)
 	  {
 					DmaReadInit(buffer,length);
@@ -1161,10 +1067,14 @@ ft_void_t Ft_Gpu_Hal_RdMem(Ft_Gpu_Hal_Context_t *host,ft_uint32_t addr, ft_uint8
 						dmaDone = 0;
 					SPI_MODULE_NO->RSER = 0;
 		}			
-//			while (length--) {
-//			   *buffer = Ft_Gpu_Hal_Transfer8(host,0);
-//			   buffer++;
-//			}
+		
+		#else
+			while (length--) {
+			   *buffer = Ft_Gpu_Hal_Transfer8(host,0);
+			   buffer++;
+			}
+
+#endif
 
         Ft_Gpu_Hal_EndTransfer(host);
 	

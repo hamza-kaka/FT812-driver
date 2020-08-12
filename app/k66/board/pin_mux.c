@@ -48,7 +48,7 @@ BOARD_InitPins:
   - {pin_num: '143', peripheral: SPI2, signal: SIN, pin_signal: PTD14/SPI2_SIN/SDHC0_D6/FB_A22}
   - {pin_num: '137', peripheral: GPIOD, signal: 'GPIO, 8', pin_signal: PTD8/LLWU_P24/I2C0_SCL/LPUART0_RX/FB_A16}
   - {pin_num: '138', peripheral: GPIOD, signal: 'GPIO, 9', pin_signal: PTD9/I2C0_SDA/LPUART0_TX/FB_A17, direction: INPUT}
-  - {pin_num: '139', peripheral: GPIOD, signal: 'GPIO, 10', pin_signal: PTD10/LPUART0_RTS_b/FB_A18}
+  - {pin_num: '139', peripheral: GPIOD, signal: 'GPIO, 10', pin_signal: PTD10/LPUART0_RTS_b/FB_A18, direction: OUTPUT, gpio_init_state: 'true'}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
 /* clang-format on */
@@ -70,6 +70,13 @@ void BOARD_InitPins(void)
     };
     /* Initialize GPIO functionality on pin PTD9 (pin 138)  */
     GPIO_PinInit(BOARD_INITPINS_LCD_Int_GPIO, BOARD_INITPINS_LCD_Int_PIN, &LCD_Int_config);
+
+    gpio_pin_config_t LCD_PDN_config = {
+        .pinDirection = kGPIO_DigitalOutput,
+        .outputLogic = 1U
+    };
+    /* Initialize GPIO functionality on pin PTD10 (pin 139)  */
+    GPIO_PinInit(BOARD_INITPINS_LCD_PDN_GPIO, BOARD_INITPINS_LCD_PDN_PIN, &LCD_PDN_config);
 
     /* PORTD10 (pin 139) is configured as PTD10 */
     PORT_SetPinMux(BOARD_INITPINS_LCD_PDN_PORT, BOARD_INITPINS_LCD_PDN_PIN, kPORT_MuxAsGpio);

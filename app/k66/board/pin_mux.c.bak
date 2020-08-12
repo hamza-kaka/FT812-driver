@@ -12,12 +12,17 @@ processor: MK66FN2M0xxx18
 package_id: MK66FN2M0VLQ18
 mcu_data: ksdk2_0
 processor_version: 6.0.1
+pin_labels:
+- {pin_num: '137', pin_signal: PTD8/LLWU_P24/I2C0_SCL/LPUART0_RX/FB_A16, label: LCD_Audiol, identifier: LCD_Audiol}
+- {pin_num: '138', pin_signal: PTD9/I2C0_SDA/LPUART0_TX/FB_A17, label: LCD_Int, identifier: LCD_Int}
+- {pin_num: '139', pin_signal: PTD10/LPUART0_RTS_b/FB_A18, label: LCD_PDN, identifier: LCD_PDN}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
 /* clang-format on */
 
 #include "fsl_common.h"
 #include "fsl_port.h"
+#include "fsl_gpio.h"
 #include "pin_mux.h"
 
 /* FUNCTION ************************************************************************************************************
@@ -41,6 +46,9 @@ BOARD_InitPins:
   - {pin_num: '141', peripheral: SPI2, signal: SCK, pin_signal: PTD12/SPI2_SCK/FTM3_FLT0/SDHC0_D4/FB_A20}
   - {pin_num: '142', peripheral: SPI2, signal: SOUT, pin_signal: PTD13/SPI2_SOUT/SDHC0_D5/FB_A21}
   - {pin_num: '143', peripheral: SPI2, signal: SIN, pin_signal: PTD14/SPI2_SIN/SDHC0_D6/FB_A22}
+  - {pin_num: '137', peripheral: GPIOD, signal: 'GPIO, 8', pin_signal: PTD8/LLWU_P24/I2C0_SCL/LPUART0_RX/FB_A16}
+  - {pin_num: '138', peripheral: GPIOD, signal: 'GPIO, 9', pin_signal: PTD9/I2C0_SDA/LPUART0_TX/FB_A17, direction: INPUT}
+  - {pin_num: '139', peripheral: GPIOD, signal: 'GPIO, 10', pin_signal: PTD10/LPUART0_RTS_b/FB_A18, direction: OUTPUT}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
 /* clang-format on */
@@ -56,6 +64,23 @@ void BOARD_InitPins(void)
     /* Port D Clock Gate Control: Clock enabled */
     CLOCK_EnableClock(kCLOCK_PortD);
 
+    gpio_pin_config_t LCD_Int_config = {
+        .pinDirection = kGPIO_DigitalInput,
+        .outputLogic = 0U
+    };
+    /* Initialize GPIO functionality on pin PTD9 (pin 138)  */
+    GPIO_PinInit(BOARD_INITPINS_LCD_Int_GPIO, BOARD_INITPINS_LCD_Int_PIN, &LCD_Int_config);
+
+    gpio_pin_config_t LCD_PDN_config = {
+        .pinDirection = kGPIO_DigitalOutput,
+        .outputLogic = 0U
+    };
+    /* Initialize GPIO functionality on pin PTD10 (pin 139)  */
+    GPIO_PinInit(BOARD_INITPINS_LCD_PDN_GPIO, BOARD_INITPINS_LCD_PDN_PIN, &LCD_PDN_config);
+
+    /* PORTD10 (pin 139) is configured as PTD10 */
+    PORT_SetPinMux(BOARD_INITPINS_LCD_PDN_PORT, BOARD_INITPINS_LCD_PDN_PIN, kPORT_MuxAsGpio);
+
     /* PORTD11 (pin 140) is configured as SPI2_PCS0 */
     PORT_SetPinMux(PORTD, 11U, kPORT_MuxAlt2);
 
@@ -67,6 +92,12 @@ void BOARD_InitPins(void)
 
     /* PORTD14 (pin 143) is configured as SPI2_SIN */
     PORT_SetPinMux(PORTD, 14U, kPORT_MuxAlt2);
+
+    /* PORTD8 (pin 137) is configured as PTD8 */
+    PORT_SetPinMux(BOARD_INITPINS_LCD_Audiol_PORT, BOARD_INITPINS_LCD_Audiol_PIN, kPORT_MuxAsGpio);
+
+    /* PORTD9 (pin 138) is configured as PTD9 */
+    PORT_SetPinMux(BOARD_INITPINS_LCD_Int_PORT, BOARD_INITPINS_LCD_Int_PIN, kPORT_MuxAsGpio);
 }
 /***********************************************************************************************************************
  * EOF

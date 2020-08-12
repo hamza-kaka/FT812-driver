@@ -128,7 +128,7 @@
 #define ZERO                 0UL
 
 
-//FT812 Registers
+																																																																									/******************************* FT812 registers	 *************************************/
 #define REG_ANALOG           3154284UL
 #define REG_ANA_COMP         3154308UL
 #define REG_BIST_EN          3154292UL
@@ -245,7 +245,8 @@
 #define REG_VSYNC1           3154000UL
 
  
-//FT812 commands
+																																																															/******************************* FT812 commands	 *************************************/
+																																																															
 #define CMD_APPEND           4294967070UL
 #define CMD_BGCOLOR          4294967049UL
 #define CMD_BITMAP_TRANSFORM 4294967073UL
@@ -317,7 +318,8 @@
 #define CMD_DIAL             4294967085UL
 #define CMD_CLOCK            4294967060UL
 
-//macros 
+																																																																											/******************************* macros *************************************/
+																																																																											
 #define CLEAR_COLOR_RGB(red,green,blue) ((2UL<<24)|(((red)&255UL)<<16)|(((green)&255UL)<<8)|(((blue)&255UL)<<0))
 #define COLOR_RGB(red,green,blue) ((4UL<<24)|(((red)&255UL)<<16)|(((green)&255UL)<<8)|(((blue)&255UL)<<0))
 #define COLOR_MASK(r,g,b,a) ((32UL<<24)|(((r)&1UL)<<3)|(((g)&1UL)<<2)|(((b)&1UL)<<1)|(((a)&1UL)<<0))
@@ -373,7 +375,7 @@
 #define MACRO(m) ((37UL<<24)|(((m)&1UL)<<0))
 
  
-//Font Related 
+																																																																/*******************************Font Related *************************************/
 #define FT_GPU_NUMCHAR_PERFONT (128)
 #define FT_GPU_FONT_TABLE_SIZE (148)
 #define ROMFONT_TABLEADDRESS 3145724UL

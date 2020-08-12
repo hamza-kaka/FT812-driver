@@ -70,7 +70,12 @@
                         <pin_feature name="direction" value="INPUT"/>
                      </pin_features>
                   </pin>
-                  <pin peripheral="GPIOD" signal="GPIO, 10" pin_num="139" pin_signal="PTD10/LPUART0_RTS_b/FB_A18"/>
+                  <pin peripheral="GPIOD" signal="GPIO, 10" pin_num="139" pin_signal="PTD10/LPUART0_RTS_b/FB_A18">
+                     <pin_features>
+                        <pin_feature name="direction" value="OUTPUT"/>
+                        <pin_feature name="gpio_init_state" value="true"/>
+                     </pin_features>
+                  </pin>
                </pins>
             </function>
          </functions_list>
