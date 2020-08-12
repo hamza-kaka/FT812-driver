@@ -1,6 +1,6 @@
 /*! 
-@file lcd_driver_main.c
-@brief  main file for FT81x driver 
+@file timers
+@brief 
 @details 
 
 @author Hamza Naeem Kakakhel
@@ -9,20 +9,13 @@
 /*******************************************************************************
  * Includes
  ******************************************************************************/
-#include "ft81x_copro_cmds.h"
-#include "gpu_hal.h"
-#include "fsl_common.h"
-#include "clock_config.h"
-#include "fsl_debug_console.h"
 #include "timers.h"
-#include "image_loading.h"
-#include "screens.h"
-#include "spi.h"
+#include "fsl_common.h"
+#include "fsl_pit.h"
 
 /*******************************************************************************
  * Defines
  ******************************************************************************/
-
 
 /*******************************************************************************
  * Enums
@@ -40,43 +33,52 @@
  * Variables
  ******************************************************************************/
 
-
 /*******************************************************************************
  * Code
  ******************************************************************************/
-
-
-int main()
+ void PitInit()
 {
-  BOARD_InitBootClocks();
-	BOARD_InitBootPins();
-	
-	
-	
 
+	pit_config_t pitConfig; 
+	PIT_GetDefaultConfig(&pitConfig);
+	PIT_Init(PIT, &pitConfig);
 	
-	Ft_Gpu_Hal_Config_t Lcd_Spi_def_config = {DEF_PCS_NO, CONT_CLCK_ENABLE, CONT_PCS_ENABLE };
-	Ft_Gpu_Hal_Context_t Lcd_Spi_Handler;
-	Ft_Gpu_HalInit_t Lcd_spiModule;
-	Ft_Gpu_Hal_Context_t* phost = &Lcd_Spi_Handler;	
-
-		
-	ActivateFT81x(phost,&(Lcd_spiModule),&Lcd_Spi_def_config);
-	
-	
-																								////////////////////////////// display list and command buffer code /////////////////////////////////////////
-											
-	
-while(1)
-{}
 }
 
+ 
+void PitSetPeriod(int periodUs)
+ {
+	PIT_SetTimerPeriod(PIT, kPIT_Chnl_0, USEC_TO_COUNT(periodUs, PIT_SOURCE_CLOCK));
+ }
+ 
+ void PitStartTimer()
+ {
+	PIT_StartTimer(PIT, kPIT_Chnl_0);
+ }
+ 
+ void PitStopTimer()
+ {
+	PIT_StopTimer(PIT, kPIT_Chnl_0);
+ }
+ 
+ void PitClearFlags()
+ {
+	PIT_ClearStatusFlags(PIT, kPIT_Chnl_0,kPIT_TimerFlag);
+ }
+
+ 
+ void PitWaitStart()
+ {
+	 PIT_StartTimer(PIT, kPIT_Chnl_0);
+	while(!PIT_GetStatusFlags(PIT, kPIT_Chnl_0))
+	{}
+ }
+ 
+ void PitTimer(int time)
+ {
+	PitSetPeriod(time);
+	PitWaitStart();
+	PitStopTimer();
+	PitClearFlags();
+ }
 /* EOF */
-
-
-
-
-
-
-
-

@@ -5,7 +5,6 @@
 *.crf
 *.map
 *.uvoptx
-*.uvprojx
 *.lst
 
 **/*.scvd

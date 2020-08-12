@@ -16,40 +16,26 @@
 #include "fsl_common.h"
 #include "ft81xdef.h"
 #include "fsl_dmamux.h"
+#include "timers.h"
+
 
 /*******************************************************************************
  * Defines
  ******************************************************************************/
-#define def_SPI_config (1) //default SPI config
-
 #define FT_DispPIN (0x80)
 
-#define TR1 0x00003FE7    //touch transform definitions
-#define TR2 0xFFFF6B9F
-#define TR3 0x02166707
-#define TR4 0xFFFFDF7B
-#define TR5 0xFFFF6FFD
-#define TR6 0x021EA8F3
-
-#define SPI_MODULE_NO (SPI2)
-#define CONT_CLCK_ENABLE (0)
-#define CONT_PCS_ENABLE (1)
-#define DEF_PCS_NO (0)
-
-#define DMA_MUX DMAMUX0
-#define SPI_TX_SRC (39)
-#define SPI_RX_SRC (38)
-
-#define DMA_TX_CHNL (14)
-#define DMA_RX_CHNL (15)
-#define PUSH_REG 0x400AC034
-#define POP_REG  0x400AC038
-#define TX_BYTES (1)
-#define S_OFF    (1) // DMA source address offset in bytes
-#define RX_BYTES (1)
-#define DMA_MAX_ITER (0x7FFF)
+#define TR1 0x00008302    //touch transform definitions
+#define TR2 0x0000037B
+#define TR3 0xFFF10B62
+#define TR4 0x00000428
+#define TR5 0xFFFFB3DA
+#define TR6 0x011AFA03
 
 #define BUFFER_OPTIMIZATION (1)
+#define DMA_XFER_EN (1)
+
+#define LCD_PDN_PIN (10)
+#define LCD_PDN_GPIO GPIOD
 
 #define FT_GPU_81X_RESET_ACTIVE 0x000268
 #define FT_GPU_81X_RESET_REMOVAL 0x002068
@@ -274,6 +260,8 @@ ft_uint32_t Ft_Fifo_GetFreeSpace(Ft_Gpu_Hal_Context_t *host,Ft_Fifo_t *pFifo);//
 
 
 void ActivateFT81x(Ft_Gpu_Hal_Context_t* phost,Ft_Gpu_HalInit_t* Lcd_spiModule,Ft_Gpu_Hal_Config_t* Lcd_Spi_def_config);
+void LcdHardwareReset();
+void InterruptInit();
 ft_void_t TouchRegCalib (Ft_Gpu_Hal_Context_t *host);
 ft_int32_t hal_strlen(const ft_char8_t *s);
 ft_void_t Ft_Gpu_Hal_Sleep(ft_uint32_t ms);

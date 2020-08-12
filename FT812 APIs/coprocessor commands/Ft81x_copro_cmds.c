@@ -43,7 +43,7 @@
 ft_void_t Ft_Gpu_Copro_SendCmd(Ft_Gpu_Hal_Context_t *phost,ft_uint32_t cmd)
 { 
   
-#ifdef BUFFER_OPTIMIZATION
+#if (BUFFER_OPTIMIZATION)
    Ft_App_WrCoCmd_Buffer(phost,cmd);
 #else
 	//Ft_App_WrCoCmd_Buffer(phost,cmd);
@@ -55,7 +55,7 @@ ft_void_t Ft_Gpu_Copro_SendCmd(Ft_Gpu_Hal_Context_t *phost,ft_uint32_t cmd)
 ft_void_t Ft_Gpu_CoCmd_SendStr(Ft_Gpu_Hal_Context_t *phost,const ft_char8_t *s)
 {
   
-#ifdef BUFFER_OPTIMIZATION 
+#if (BUFFER_OPTIMIZATION) 
 	Ft_App_WrCoStr_Buffer(phost,s);
 #else
 	Ft_Gpu_Hal_TransferString(phost,s);
@@ -66,7 +66,7 @@ ft_void_t Ft_Gpu_CoCmd_SendStr(Ft_Gpu_Hal_Context_t *phost,const ft_char8_t *s)
 
 ft_void_t Ft_Gpu_CoCmd_StartFunc(Ft_Gpu_Hal_Context_t *phost,ft_uint16_t count)
 {
-#ifndef BUFFER_OPTIMIZATION
+#if (!BUFFER_OPTIMIZATION)
   	Ft_Gpu_Hal_CheckCmdBuffer(phost,count);
     Ft_Gpu_Hal_StartCmdTransfer(phost,FT_GPU_WRITE,count);
 #endif
@@ -76,7 +76,7 @@ ft_void_t Ft_Gpu_CoCmd_StartFunc(Ft_Gpu_Hal_Context_t *phost,ft_uint16_t count)
 ft_void_t Ft_Gpu_CoCmd_EndFunc(Ft_Gpu_Hal_Context_t *phost,ft_uint16_t count)
 {
 
-#ifndef BUFFER_OPTIMIZATION
+#if (!BUFFER_OPTIMIZATION)
   Ft_Gpu_Hal_EndTransfer(phost);
   Ft_Gpu_Hal_Updatecmdfifo(phost,count);
 #endif
